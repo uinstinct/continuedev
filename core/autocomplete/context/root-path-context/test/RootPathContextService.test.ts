@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 import { PYTHON_TEST_CASES, TYPESCRIPT_TEST_CASES } from "./testCases";
 import { testRootPathContext } from "./testUtils";
 
@@ -41,7 +42,7 @@ const TEST_CASES = [
 
 describe("RootPathContextService", () => {
   describe("should look for correct type definitions", () => {
-    test.each(TEST_CASES)(
+    it.each(TEST_CASES)(
       "$language: $nodeType",
       async ({ fileName, cursorPosition, definitionPositions }) => {
         await testRootPathContext(

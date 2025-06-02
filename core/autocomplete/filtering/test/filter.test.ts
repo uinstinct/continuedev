@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 import { setUpTestDir, tearDownTestDir } from "../../../test/testDir";
 
 import { TEST_CASES_WITH_DIFF, TEST_CASES_WITHOUT_DIFF } from "./testCases";
