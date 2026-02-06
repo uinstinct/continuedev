@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { ChildProcess, spawn } from "child_process";
 import fs from "fs";
 
 import {
@@ -7,6 +7,7 @@ import {
 } from "@continuedev/terminal-security";
 
 import { backgroundJobManager } from "../services/BackgroundJobManager.js";
+import { backgroundSignalManager } from "../services/BackgroundSignalManager.js";
 import { telemetryService } from "../telemetry/telemetryService.js";
 import {
   isGitCommitCommand,
@@ -217,6 +218,34 @@ IMPORTANT: To edit files, use Edit/MultiEdit tools instead of bash commands (sed
         return output;
       };
 
+      const moveToBackground = () => {
+        if (isResolved) return;
+        isResolved = true;
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        backgroundSignalManager.off("backgroundRequested", moveToBackground);
+
+        const job = backgroundJobManager.createJobWithProcess(
+          command,
+          child as ChildProcess,
+          stdout,
+        );
+
+        if (job) {
+          resolve(
+            `Command moved to background. Job ID: ${job.id}\nOutput so far:\n${stdout}\nUse CheckBackgroundJob("${job.id}") to check status.`,
+          );
+        } else {
+          resolve(
+            `Failed to move to background (job limit reached). Command continues in foreground.\nOutput so far: ${stdout}`,
+          );
+        }
+      };
+
+      backgroundSignalManager.on("backgroundRequested", moveToBackground);
+
       const resetTimeout = () => {
         if (timeoutId) {
           clearTimeout(timeoutId);
@@ -224,6 +253,7 @@ IMPORTANT: To edit files, use Edit/MultiEdit tools instead of bash commands (sed
         timeoutId = setTimeout(() => {
           if (isResolved) return;
           isResolved = true;
+          backgroundSignalManager.off("backgroundRequested", moveToBackground);
           child.kill();
           let output = stdout + (stderr ? `\nStderr: ${stderr}` : "");
           output += `\n\n[Command timed out after ${TIMEOUT_MS / 1000} seconds of no output]`;
@@ -259,6 +289,10 @@ IMPORTANT: To edit files, use Edit/MultiEdit tools instead of bash commands (sed
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
+        backgroundSignalManager.removeListener(
+          "backgroundRequested",
+          moveToBackground,
+        );
 
         // Only reject on non-zero exit code if there's also stderr
         if (code !== 0 && stderr) {
@@ -297,6 +331,7 @@ IMPORTANT: To edit files, use Edit/MultiEdit tools instead of bash commands (sed
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
+        backgroundSignalManager.off("backgroundRequested", moveToBackground);
         reject(`Error: ${error.message}`);
       });
     });

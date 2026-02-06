@@ -8,9 +8,7 @@ export const checkBackgroundJobTool: Tool = {
   description: `Check the status and output of a background job.
 
 Returns the current status, exit code (if finished), and all available output.
-If the job is still running, returns partial output with "running" status.
-
-Use this tool to poll for results from commands you've sent to the background with Ctrl+B.`,
+If the job is still running, returns partial output with "running" status.`,
   parameters: {
     type: "object",
     required: ["job_id"],

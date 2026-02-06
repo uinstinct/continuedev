@@ -11,7 +11,6 @@ import { ToolPermissionServiceState } from "src/services/ToolPermissionService.j
 import { checkToolPermission } from "../permissions/permissionChecker.js";
 import { toolPermissionManager } from "../permissions/permissionManager.js";
 import { ToolCallRequest, ToolPermissions } from "../permissions/types.js";
-import { backgroundSignalManager } from "../services/BackgroundSignalManager.js";
 import {
   SERVICE_NAMES,
   serviceContainer,
@@ -26,7 +25,6 @@ import {
   Tool,
   validateToolCallArgsPresent,
 } from "../tools/index.js";
-import { runCommandInBackground } from "../tools/runTerminalCommand.js";
 import { PreprocessedToolCall, ToolCall } from "../tools/types.js";
 import { logger } from "../util/logger.js";
 
@@ -572,9 +570,6 @@ export async function executeStreamedToolCalls(
         services.chatHistory.updateToolStatus(call.id, "calling");
       } catch {}
 
-      // Set current tool call for background signal manager
-      backgroundSignalManager.setCurrentToolCall(call.id);
-
       // Start execution immediately for approved calls
       execPromises.push(
         (async () => {
@@ -583,27 +578,6 @@ export async function executeStreamedToolCalls(
               name: call.name,
               arguments: call.arguments,
             });
-
-            // Check if background signal was received during permission phase
-            const bgSignal = backgroundSignalManager.consumeSignal();
-            if (bgSignal && call.name === "Bash" && call.arguments.command) {
-              const result = runCommandInBackground(call.arguments.command);
-              const toolResult = result.success
-                ? `Command sent to background. Job ID: ${result.jobId}\nUse CheckBackgroundJob("${result.jobId}") to check status.`
-                : `Failed to run in background: ${result.error}`;
-              const entry: ToolResultWithStatus = {
-                role: "tool",
-                tool_call_id: call.id,
-                content: toolResult,
-                status: "done",
-              };
-              entriesByIndex.set(index, entry);
-              callbacks?.onToolResult?.(toolResult, call.name, "done");
-              try {
-                services.chatHistory.addToolResult(call.id, toolResult, "done");
-              } catch {}
-              return;
-            }
 
             const toolResult = await executeToolCall(call, {
               parallelToolCallCount,
@@ -647,8 +621,6 @@ export async function executeStreamedToolCalls(
                 "errored",
               );
             } catch {}
-          } finally {
-            backgroundSignalManager.setCurrentToolCall(null);
           }
         })(),
       );

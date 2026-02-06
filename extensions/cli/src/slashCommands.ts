@@ -170,6 +170,7 @@ function handleTitle(args: string[]) {
   }
 }
 
+// TODO: append 10 lines of job output
 function handleJobs() {
   const allJobs = backgroundJobManager.getAllJobs();
   if (allJobs.length === 0) {

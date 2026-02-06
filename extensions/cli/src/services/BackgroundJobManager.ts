@@ -85,6 +85,53 @@ export class BackgroundJobManager extends EventEmitter {
     return child;
   }
 
+  createJobWithProcess(
+    command: string,
+    child: ChildProcess,
+    existingOutput: string = "",
+  ): BackgroundJob | null {
+    const runningCount = this.getRunningJobCount();
+    if (runningCount >= MAX_CONCURRENT_JOBS) {
+      logger.warn(
+        `Cannot create background job: limit of ${MAX_CONCURRENT_JOBS} reached`,
+      );
+      return null;
+    }
+
+    const id = `bg-${++this.jobCounter}-${Date.now()}`;
+    const job: BackgroundJob = {
+      id,
+      status: "running",
+      command,
+      output: existingOutput,
+      exitCode: null,
+      startTime: new Date(),
+      endTime: null,
+    };
+
+    this.jobs.set(id, job);
+    this.processes.set(id, child);
+    this.emit("jobCreated", job);
+
+    child.stdout?.on("data", (data: Buffer) => {
+      this.appendOutput(id, data.toString());
+    });
+
+    child.stderr?.on("data", (data: Buffer) => {
+      this.appendOutput(id, data.toString());
+    });
+
+    child.on("close", (code: number | null) => {
+      this.completeJob(id, code ?? 0);
+    });
+
+    child.on("error", (error: Error) => {
+      this.failJob(id, error.message);
+    });
+
+    return job;
+  }
+
   appendOutput(jobId: string, data: string): void {
     const job = this.jobs.get(jobId);
     if (job) {
