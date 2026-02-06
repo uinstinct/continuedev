@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 
 import { setExitMessageCallback, shouldShowExitMessage } from "../../index.js";
 import type { PermissionMode } from "../../permissions/types.js";
+import { backgroundJobManager } from "../../services/BackgroundJobManager.js";
 import type { NavigationScreen } from "../context/NavigationContext.js";
 import { FreeTrialStatus } from "../FreeTrialStatus.js";
 import { UpdateNotification } from "../UpdateNotification.js";
@@ -39,11 +40,29 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
   totalCost,
 }) => {
   const [_refreshTrigger, setRefreshTrigger] = useState(0);
+  const [runningJobCount, setRunningJobCount] = useState(0);
 
   useEffect(() => {
     setExitMessageCallback(() => {
       setRefreshTrigger((prev) => prev + 1);
     });
+  }, []);
+
+  useEffect(() => {
+    const updateJobCount = () => {
+      setRunningJobCount(backgroundJobManager.getRunningJobCount());
+    };
+    updateJobCount();
+    backgroundJobManager.on("jobCreated", updateJobCount);
+    backgroundJobManager.on("jobCompleted", updateJobCount);
+    backgroundJobManager.on("jobFailed", updateJobCount);
+    backgroundJobManager.on("jobCancelled", updateJobCount);
+    return () => {
+      backgroundJobManager.off("jobCreated", updateJobCount);
+      backgroundJobManager.off("jobCompleted", updateJobCount);
+      backgroundJobManager.off("jobFailed", updateJobCount);
+      backgroundJobManager.off("jobCancelled", updateJobCount);
+    };
   }, []);
 
   const showingExitMessage = shouldShowExitMessage();
@@ -85,6 +104,17 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
             </Text>
             <Text key="cost-display" color="dim">
               Cost: ${totalCost.toFixed(4)}
+            </Text>
+          </React.Fragment>
+        )}
+        {runningJobCount > 0 && (
+          <React.Fragment>
+            <Text key="jobs-separator" color="dim">
+              {" "}
+              •{" "}
+            </Text>
+            <Text key="jobs-display" color="yellow">
+              ⏳ {runningJobCount} job{runningJobCount > 1 ? "s" : ""}
             </Text>
           </React.Fragment>
         )}

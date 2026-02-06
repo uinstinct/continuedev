@@ -2,11 +2,11 @@ import { type AssistantConfig } from "@continuedev/sdk";
 
 // Export command functions
 export { chat } from "./chat.js";
-export { review } from "./review.js";
 export { login } from "./login.js";
 export { logout } from "./logout.js";
 export { listSessionsCommand } from "./ls.js";
 export { remote } from "./remote.js";
+export { review } from "./review.js";
 export { serve } from "./serve.js";
 
 export interface SlashCommand {
@@ -94,6 +94,11 @@ export const SYSTEM_SLASH_COMMANDS: SystemCommand[] = [
   {
     name: "title",
     description: "Set the title for the current session",
+    category: "system",
+  },
+  {
+    name: "jobs",
+    description: "List background jobs",
     category: "system",
   },
   {

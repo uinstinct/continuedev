@@ -6,6 +6,7 @@ import {
   type ToolPolicy,
 } from "@continuedev/terminal-security";
 
+import { backgroundJobManager } from "../services/BackgroundJobManager.js";
 import { telemetryService } from "../telemetry/telemetryService.js";
 import {
   isGitCommitCommand,
@@ -80,6 +81,35 @@ function getShellCommand(command: string): { shell: string; args: string[] } {
   // Unix/macOS: Use login shell to source .bashrc/.zshrc etc.
   const userShell = process.env.SHELL || "/bin/bash";
   return { shell: userShell, args: ["-l", "-c", command] };
+}
+
+export function runCommandInBackground(command: string): {
+  success: boolean;
+  jobId?: string;
+  error?: string;
+} {
+  const job = backgroundJobManager.createJob(command);
+  if (!job) {
+    return {
+      success: false,
+      error: "Cannot create background job: limit of 5 concurrent jobs reached",
+    };
+  }
+
+  const { shell, args } = getShellCommand(command);
+  const child = backgroundJobManager.startJob(job.id, shell, args);
+
+  if (!child) {
+    return {
+      success: false,
+      error: `Failed to start background job ${job.id}`,
+    };
+  }
+
+  return {
+    success: true,
+    jobId: job.id,
+  };
 }
 
 export const runTerminalCommandTool: Tool = {
