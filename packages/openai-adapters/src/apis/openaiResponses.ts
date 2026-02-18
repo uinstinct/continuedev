@@ -11,7 +11,6 @@ import {
   ChatCompletionCreateParams,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
   ChatCompletionTool,
 } from "openai/resources/index.js";
 import {
@@ -227,6 +226,29 @@ function extractToolResultContent(
     .join("");
 }
 
+/**
+ * Ensures a top-level schema is valid for OpenAI function parameters.
+ * OpenAI requires function parameters to have type: "object".
+ * Some MCP servers may return invalid types like "None" (Python None serialized as string).
+ */
+function ensureValidFunctionSchema(schema: any): any {
+  if (!schema || typeof schema !== "object") {
+    return { type: "object", properties: {} };
+  }
+
+  const result = { ...schema };
+
+  if (!result.type || result.type !== "object") {
+    result.type = "object";
+  }
+
+  if (!result.properties) {
+    result.properties = {};
+  }
+
+  return result;
+}
+
 function convertTools(
   tools?: ChatCompletionTool[] | null,
   legacyFunctions?: ChatCompletionCreateParams["functions"],
@@ -238,7 +260,7 @@ function convertTools(
           type: "function" as const,
           name: tool.function.name,
           description: tool.function.description ?? null,
-          parameters: tool.function.parameters ?? null,
+          parameters: ensureValidFunctionSchema(tool.function.parameters),
           strict:
             tool.function.strict !== undefined ? tool.function.strict : null,
         };
@@ -252,7 +274,7 @@ function convertTools(
       type: "function" as const,
       name: fn.name,
       description: fn.description ?? null,
-      parameters: fn.parameters ?? null,
+      parameters: ensureValidFunctionSchema(fn.parameters),
       strict: null,
     }));
   }

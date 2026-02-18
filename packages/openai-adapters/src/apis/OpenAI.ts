@@ -17,12 +17,13 @@ import type {
 } from "openai/resources/responses/responses.js";
 import { z } from "zod";
 import { OpenAIConfigSchema } from "../types.js";
+import { customFetch } from "../util.js";
 import {
-  customFetch,
-  chatChunk,
-  usageChatChunk,
-  chatChunkFromDelta,
-} from "../util.js";
+  BaseLlmApi,
+  CreateRerankResponse,
+  FimCreateParamsStreaming,
+  RerankCreateParams,
+} from "./base.js";
 import {
   createResponsesStreamState,
   fromResponsesChunk,
@@ -30,12 +31,6 @@ import {
   responseToChatCompletion,
   toResponsesParams,
 } from "./openaiResponses.js";
-import {
-  BaseLlmApi,
-  CreateRerankResponse,
-  FimCreateParamsStreaming,
-  RerankCreateParams,
-} from "./base.js";
 
 export class OpenAIApi implements BaseLlmApi {
   openai: OpenAI;
@@ -197,7 +192,7 @@ export class OpenAIApi implements BaseLlmApi {
       model,
       messages: modifiedBody.messages as any,
       temperature: modifiedBody.temperature ?? undefined,
-      maxTokens:
+      maxOutputTokens:
         modifiedBody.max_completion_tokens ??
         modifiedBody.max_tokens ??
         undefined,
@@ -215,12 +210,12 @@ export class OpenAIApi implements BaseLlmApi {
     });
 
     // Convert Vercel AI SDK result to OpenAI ChatCompletion format
-    const toolCalls = result.toolCalls?.map((tc, index) => ({
+    const toolCalls = result.toolCalls?.map((tc) => ({
       id: tc.toolCallId,
       type: "function" as const,
       function: {
         name: tc.toolName,
-        arguments: JSON.stringify(tc.args),
+        arguments: JSON.stringify(tc.input),
       },
     }));
 
@@ -244,9 +239,10 @@ export class OpenAIApi implements BaseLlmApi {
         },
       ],
       usage: {
-        prompt_tokens: result.usage.promptTokens,
-        completion_tokens: result.usage.completionTokens,
-        total_tokens: result.usage.totalTokens,
+        prompt_tokens: result.usage.inputTokens ?? 0,
+        completion_tokens: result.usage.outputTokens ?? 0,
+        total_tokens:
+          (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
       },
     };
   }
@@ -317,7 +313,7 @@ export class OpenAIApi implements BaseLlmApi {
       model,
       messages: modifiedBody.messages as any,
       temperature: modifiedBody.temperature ?? undefined,
-      maxTokens:
+      maxOutputTokens:
         modifiedBody.max_completion_tokens ??
         modifiedBody.max_tokens ??
         undefined,
